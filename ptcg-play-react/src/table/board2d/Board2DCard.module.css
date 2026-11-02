@@ -170,6 +170,29 @@
   transform: rotate(90deg);
 }
 
+/* Loose paper belongs to the public card stack; the slot/hit area stays square. */
+.card[data-paper-face='true'],
+.card[data-paper-face='true']:not(.empty):not(.selectable):not(.selected):hover {
+  box-shadow: none;
+}
+.paper, .stackLeaf {
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  transform-origin: 50% 78%;
+  box-shadow: 0 1px 0 var(--edge-1), 0 2px 0 var(--edge-2), 1px 4px 2px #181c12a0, 0 8px 12px #0005;
+}
+.paper { position: relative; z-index: 1; }
+.stackLeaf {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #d9d5bd;
+  box-shadow: inset 0 0 0 1px #efeddd, inset 0 0 0 3px #849074, 1px 3px 3px #0006;
+}
+.stackLeaf:nth-child(2n) { background: #b9c6b0; }
+
 .mainFace {
   width: 100%;
   height: 100%;

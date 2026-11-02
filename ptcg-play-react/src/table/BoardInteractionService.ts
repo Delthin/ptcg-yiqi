@@ -61,6 +61,12 @@ export interface BasicEntranceAnimationEvent {
   index?: number;
 }
 
+export interface AttackAnimationEvent extends BasicEntranceAnimationEvent {
+  cardType?: CardType;
+  damage?: number;
+  opponentId?: number;
+}
+
 export interface AbilityAnimationEvent extends BasicEntranceAnimationEvent {
   abilityName: string;
 }
@@ -218,7 +224,7 @@ export class BoardInteractionService {
   private basicAnimationSubject = new Subject<BasicEntranceAnimationEvent>();
   public basicAnimation$ = this.basicAnimationSubject.asObservable();
 
-  private attackAnimationSubject = new Subject<BasicEntranceAnimationEvent>();
+  private attackAnimationSubject = new Subject<AttackAnimationEvent>();
   public attackAnimation$ = this.attackAnimationSubject.asObservable();
 
   private abilityAnimationSubject = new Subject<AbilityAnimationEvent>();
@@ -1096,7 +1102,7 @@ export class BoardInteractionService {
     this.basicAnimationSubject.next(event);
   }
 
-  public triggerAttackAnimation(event: BasicEntranceAnimationEvent) {
+  public triggerAttackAnimation(event: AttackAnimationEvent) {
     this.attackAnimationSubject.next(event);
   }
 

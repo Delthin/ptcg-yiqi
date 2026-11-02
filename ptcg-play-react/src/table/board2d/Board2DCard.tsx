@@ -79,6 +79,9 @@ export function Board2DCard({
         : 'pokemon'
       : model.dualStadiumLeftCard ? 'stadium' : undefined
     : undefined;
+  const hasPaperFace = !model.isEmpty && !model.isFaceDown && !!model.mainCard && !showLegendStack;
+  const paperLayers = hasPaperFace && kind === 'pokemon' ? Math.min(Math.max(model.cardCount - 1, 0), 3) : 0;
+  const paperLean = model.mainCard ? ((Number(model.mainCard.id) * 17 % 11) - 5) * .24 : 0;
   const classNames = cn(
     styles.card,
     model.isEmpty && styles.empty,
@@ -153,10 +156,15 @@ export function Board2DCard({
       data-kind={kind}
       data-empty={model.isEmpty || undefined}
       data-prepared={prepared || undefined}
+      data-paper-face={hasPaperFace || undefined}
       style={{ ...style, ...cardbackStyle }}
       onClick={handleMainClick}
       onContextMenu={handleContextMenu}
     >
+      {Array.from({ length: paperLayers }, (_, i) => (
+        <span key={`paper-${i}`} className={styles.stackLeaf} data-board2d-leaf="under" aria-hidden="true"
+          style={{ transform: `translate(${i % 2 === 0 ? -3 - i : 3 + i}px,${3 + i * 2}px) rotate(${i % 2 === 0 ? -2.2 - i * .5 : 2.7 + i * .5}deg)` }} />
+      ))}
       {prepared ? <span className={styles.preparedBadge} role="img" aria-label="私密预备牌阵，尚未揭面">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v3" /></svg>
       </span> : null}
@@ -221,14 +229,16 @@ export function Board2DCard({
         </div>
       ) : null}
 
-      {!model.isEmpty && !model.isFaceDown && model.mainCard && !showLegendStack ? (
-        <CardFace
-          className={styles.mainFace}
-          src={scanUrl(model.mainCard, cardList)}
-          card={model.mainCard}
-          name={model.mainCard.name}
-          draggable={false}
-        />
+      {hasPaperFace && model.mainCard ? (
+        <div className={styles.paper} data-board2d-leaf="face" style={{ transform: `rotate(${paperLean}deg)` }}>
+          <CardFace
+            className={styles.mainFace}
+            src={scanUrl(model.mainCard, cardList)}
+            card={model.mainCard}
+            name={model.mainCard.name}
+            draggable={false}
+          />
+        </div>
       ) : null}
 
       {!model.isFaceDown && model.tools.length > 0 ? (
