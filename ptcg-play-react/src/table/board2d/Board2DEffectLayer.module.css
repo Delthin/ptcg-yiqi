@@ -91,6 +91,8 @@
   pointer-events: none;
 }
 .selectionMark > svg { position: absolute; top: 3px; right: 3px; padding: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--effect-brass); color: #302318; }
+.energyDestination { position: absolute; z-index: 3; border: 3px solid var(--effect-brass); border-radius: 6px; pointer-events: none; }
+.energyDestination > span { position: absolute; inset: auto -3px -3px; padding: 3px 1px; border-radius: 0 0 5px 5px; background: var(--effect-brass); color: var(--effect-wood); text-align: center; font-size: 10px; font-weight: 650; }
 .draftValue {
   position: absolute;
   z-index: 2;
@@ -143,33 +145,37 @@
   box-shadow: inset 0 1px 0 #b58b4d80, 0 3px 6px #0005;
   pointer-events: auto;
 }
-.poolLabel { position: absolute; bottom: 100%; left: 0; display: block; max-width: 100%; padding: 1px 5px; border-radius: 4px 4px 0 0; background: #261f17; color: var(--effect-soft); font-size: 10px; white-space: nowrap; }
+.poolLabel { display: block; flex: 0 0 22px; min-height: 22px; padding: 2px 5px; color: var(--effect-soft); font-size: 11px; white-space: nowrap; }
 .chipScroll {
   display: flex;
   flex: 1;
+  flex-wrap: wrap;
+  align-content: flex-start;
   min-height: 0;
   gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x proximity;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-snap-type: y proximity;
   scrollbar-width: thin;
   scrollbar-color: var(--effect-brass-dark) var(--effect-well);
-  touch-action: pan-x;
+  touch-action: pan-y;
 }
-.chip { display: flex; align-items: stretch; width: 92px; flex: 0 0 92px; min-width: 0; height: 64px; scroll-snap-align: start; }
+.chip { display: flex; flex-direction: column; width: calc(var(--effect-card-width) + 44px); flex: 0 0 calc(var(--effect-card-width) + 44px); min-width: 0; height: calc(var(--effect-card-height) + 28px); scroll-snap-align: start; }
+.chipControls { display: flex; align-items: stretch; flex: 0 0 var(--effect-card-height); height: var(--effect-card-height); }
+.chipCaption { display: -webkit-box; height: 28px; flex: 0 0 28px; padding: 2px 3px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--effect-soft); font-size: 10px; line-height: 12px; overflow-wrap: anywhere; }
 .energyCard, .textChip {
   display: block;
-  width: 46px;
-  flex: 0 0 46px;
-  height: 64px;
+  width: var(--effect-card-width);
+  flex: 0 0 var(--effect-card-width);
+  height: var(--effect-card-height);
   padding: 0;
   border: 0;
   border-radius: 4px;
   background: var(--effect-well);
   overflow: hidden;
   cursor: grab !important;
-  touch-action: none !important;
+  touch-action: pan-y !important;
 }
 .energyCard { position: relative; }
 .energyCard:not([data-can-drag]) { cursor: pointer !important; touch-action: manipulation !important; }
@@ -177,7 +183,7 @@
 .unitNumber { position: absolute; top: 3px; right: 3px; min-width: 15px; padding: 1px 3px; border-radius: 3px; background: #241b13; color: #fff2cc; font-size: 10px; }
 .energyCard:disabled { opacity: .6; cursor: not-allowed !important; }
 .textChip { padding: 4px; overflow-wrap: anywhere; font-size: 10px !important; }
-.chipSelect { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 46px; flex: 0 0 46px; padding: 2px; border: 0; border-radius: 0 4px 4px 0; background: #483521; color: var(--effect-brass); font-size: 11px !important; }
+.chipSelect { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 44px; flex: 0 0 44px; padding: 2px; border: 0; border-radius: 0 4px 4px 0; background: #483521; color: var(--effect-brass); font-size: 11px !important; }
 .chipSelect svg { width: 12px; height: 12px; }
 .chip[data-selected] .chipSelect { background: var(--effect-brass); color: #302318; }
 .chip[data-selected] .energyCard { box-shadow: inset 0 0 0 2px var(--effect-brass); }

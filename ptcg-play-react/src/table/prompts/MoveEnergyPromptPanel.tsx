@@ -314,9 +314,9 @@ export function MoveEnergyPromptPanel(props: MoveEnergyPromptPanelProps) {
     disabled, getScanUrl, focusedTarget: selectedSource && mapTarget(selectedSource),
     targets: rows.flatMap((row) => row.items).filter((item) => !!item.cardList.getPokemonCard()).map((item) => ({
       target: mapTarget(item.target), name: displayPokemonCard(item)?.name ?? '',
-      selected: !!selectedSource && targetsEqual(selectedSource, item.target),
-      actionLabel: canMove(selectedEntry, item.target) ? '移到这里' : '选择来源',
-      disabled: disabled || !(canMove(selectedEntry, item.target) || canSelectSource(item, blockedFrom ?? [])),
+      selected: transfers.some(transfer => targetsEqual(transfer.to, item.target)),
+      actionLabel: '移到这里',
+      disabled: disabled || !canMove(selectedEntry, item.target),
     })),
     chips: energyEntries.map((entry) => ({ id: entry.id, label: `${entry.card.name}${movedCardSet.has(entry.card) ? ' · 已移动' : ''}`, card: entry.card,
       source: mapTarget(transfers.find(transfer => transfer.card === entry.card)?.to ?? entry.from), selected: selectedEnergyId === entry.id,

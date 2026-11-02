@@ -27,6 +27,7 @@
     repeating-linear-gradient(11deg, rgba(0, 0, 0, .05) 0 1px, transparent 1px 7px);
 }
 .handsAndBoard { position: relative; height: 100%; }
+.root[data-energy-tray-docked] [data-board2d-hand='bottom'] { visibility: hidden; pointer-events: none; }
 .boardHost { position: absolute; inset: 12px 20px; display: flex; align-items: center; justify-content: center; perspective: 1600px; z-index: 6; }
 .boardHost.flat { perspective: none; }
 .boardCanvas { width: var(--design-w); height: var(--design-h); position: relative; flex-shrink: 0; transform-origin: center; transform-style: preserve-3d; pointer-events: none; }

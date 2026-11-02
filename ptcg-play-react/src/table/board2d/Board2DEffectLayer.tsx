@@ -1,7 +1,7 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core';
-import type { Card, CardTarget } from 'ptcg-server';
+import { PlayerType, SlotType, type Card, type CardTarget } from 'ptcg-server';
 import { CardFace } from '../../components/cards/CardFace';
 import { cardDisplayName, localizeGameValue } from '../../duo/chineseCatalog';
 import {
@@ -15,7 +15,7 @@ import {
 import styles from './Board2DEffectLayer.module.css';
 
 type Rect = { left: number; top: number; width: number; height: number };
-type Layout = { clip: Rect; root: Rect; slots: Record<string, Rect>; occupiedSlots: string[]; obstacles: Rect[]; hud: Rect[]; discard?: Rect; ownActive?: Rect };
+type Layout = { clip: Rect; root: Rect; slots: Record<string, Rect>; occupiedSlots: string[]; obstacles: Rect[]; hud: Rect[]; persistentHud: Rect[]; handSpace?: Rect; discard?: Rect; ownActive?: Rect };
 type CurrentEffect = () => BoardEffectInteraction;
 const TOUCH = 44;
 const GAP = 5;
@@ -60,8 +60,11 @@ function useBoardGeometry(rootRef: RefObject<HTMLDivElement | null>, effect: Boa
       const ownActive = root.querySelector<HTMLElement>('[data-board2d-active="bottom"]');
       const obstacles = [...root.querySelectorAll<HTMLElement>('[data-board2d-deck], [data-board2d-discard], [data-board2d-supporter], [data-board2d-lostzone], [data-board2d-prize]:not([data-empty]), [data-board2d-stadium]')]
         .filter(node => getComputedStyle(node).visibility !== 'hidden' && !node.querySelector('[data-empty="true"]')).map(rectOf);
-      const hud = [...root.querySelectorAll<HTMLElement>('[data-hand-index]'), ...document.querySelectorAll<HTMLElement>('[data-table-actions]')].map(rectOf);
-      const next: Layout = { clip, root: rootRect, slots, occupiedSlots, obstacles, hud, discard: discard ? rectOf(discard) : undefined, ownActive: ownActive ? rectOf(ownActive) : undefined };
+      const hudNodes = [...root.querySelectorAll<HTMLElement>('[data-hand-index]'), ...document.querySelectorAll<HTMLElement>('[data-table-actions]')];
+      const hud = hudNodes.map(rectOf);
+      const persistentHud = hudNodes.filter(node => !node.closest('[data-board2d-hand="bottom"]')).map(rectOf);
+      const hand = root.querySelector<HTMLElement>('[data-board2d-hand="bottom"]');
+      const next: Layout = { clip, root: rootRect, slots, occupiedSlots, obstacles, hud, persistentHud, handSpace: hand ? rectOf(hand) : undefined, discard: discard ? rectOf(discard) : undefined, ownActive: ownActive ? rectOf(ownActive) : undefined };
       setLayout(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
     };
     const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(update); };
@@ -102,7 +105,7 @@ function visibleAnchor(rect: Rect | undefined, clip: Rect): rect is Rect {
 }
 
 /** Prefer free felt alongside the card, then a small overlap of that card's edge. */
-function place(anchor: Rect, width: number, height: number, bounds: Rect, cards: Rect[], occupied: Rect[], preferSide = false): Rect | null {
+function place(anchor: Rect, width: number, height: number, bounds: Rect, cards: Rect[], occupied: Rect[], preferSide = false, searchBoard = false): Rect | null {
   const x = anchor.left + (anchor.width - width) / 2;
   const y = anchor.top + (anchor.height - height) / 2;
   const below = { left: x, top: bottom(anchor) + GAP, width, height };
@@ -127,8 +130,9 @@ function place(anchor: Rect, width: number, height: number, bounds: Rect, cards:
   }
   // Search nearby free felt rather than covering an unrelated card on a dense bench.
   const nearby: Rect[] = [];
-  for (let dy = -160; dy <= 160; dy += 20) {
-    for (let dx = -120; dx <= 120; dx += 20) nearby.push({ left: x + dx, top: y + dy, width, height });
+  const search = searchBoard ? bounds : { left: x - 120, top: y - 160, width: 240 + width, height: 320 + height };
+  for (let top = search.top; top + height <= bottom(search); top += 20) {
+    for (let left = search.left; left + width <= right(search); left += 20) nearby.push({ left, top, width, height });
   }
   nearby.sort((a, b) => Math.hypot(a.left - x, a.top - y) - Math.hypot(b.left - x, b.top - y));
   for (const rect of nearby) {
@@ -199,8 +203,14 @@ function EnergyChip({ chip, getEffect, inspect }: { chip: BoardEffectChip; getEf
   const drag = useEffectDrag(chip.id, !canDrag, allowed);
   const assignment = chip.label.endsWith(' · 已移动') ? '已移动' : chip.label.endsWith(' · 已附加') ? '已附加' : undefined;
   const unit = getEffect().kind === 'energy-choose' ? chip.label.split(' · ').at(-1) : undefined;
+  const source = chip.source;
+  const sourceName = source && getEffect().targets.find(target => keyOf(target.target) === keyOf(source))?.name;
+  const location = source ? `${source.player === PlayerType.BOTTOM_PLAYER ? '己方' : '对方'}${source.slot === SlotType.ACTIVE ? '战斗场' : `备战${source.index + 1}`}${sourceName ? ` · ${sourceName}` : ''}` : '';
+  const caption = location ? `${assignment ? '去向' : '来源'}：${location}` : assignment ?? (getEffect().kind === 'energy-attach' ? '待附加' : '可选能量');
+  const captionId = useId();
   const choose = () => { const current = currentChip(getEffect, chip.id); current?.effect.onChip?.(chip.id); };
   return <><div className={styles.chip} data-board-effect-chip={chip.id} data-selected={chip.selected || undefined} data-dragging={drag.isDragging || undefined}>
+    <div className={styles.chipControls}>
     {chip.card ? <button type="button" ref={drag.setNodeRef} {...drag.attributes} {...drag.listeners}
       className={styles.energyCard} data-can-drag={canDrag || undefined} aria-disabled={undefined}
       aria-roledescription={canDrag ? drag.attributes['aria-roledescription'] : undefined}
@@ -217,10 +227,12 @@ function EnergyChip({ chip, getEffect, inspect }: { chip: BoardEffectChip; getEf
       className={styles.textChip} disabled={!allowed()} aria-label={`选择${chip.label}，也可拖动`}
       onClick={event => { event.stopPropagation(); if (allowed() && drag.canClick()) choose(); }}>{chip.label}</button>}
     <button type="button" className={styles.chipSelect} disabled={!allowed() || !getEffect().onChip}
-      aria-pressed={!!chip.selected} aria-label={assignment ? chip.label : `${chip.selected ? '取消选择' : '选择'}${chip.label}`}
+      aria-pressed={!!chip.selected} aria-describedby={captionId} aria-label={assignment ? chip.label : `${chip.selected ? '取消选择' : '选择'}${chip.label}`}
       onClick={event => { event.stopPropagation(); choose(); }}>
       {chip.selected ? <Check /> : null}{assignment ?? (chip.selected ? '已选' : '选择')}
     </button>
+    </div>
+    <span id={captionId} className={styles.chipCaption} title={caption}>{caption}</span>
   </div><DragGhost position={drag.ghostStyle}>{chip.card ? <CardFace src={getEffect().getScanUrl?.(chip.card) ?? ''} card={chip.card} name={chip.label} draggable={false} /> : chip.label}</DragGhost></>;
 }
 
@@ -293,6 +305,17 @@ function DiscardLanding({ position, getEffect }: { position: Rect; getEffect: Cu
   </div>;
 }
 
+/** On crowded screens, temporarily use the inactive hand's space; restore it on cleanup. */
+function EnergyHandSpace({ rootRef }: { rootRef: RefObject<HTMLDivElement | null> }) {
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.dataset.energyTrayDocked = '';
+    return () => { delete root.dataset.energyTrayDocked; };
+  }, [rootRef]);
+  return null;
+}
+
 export function Board2DEffectLayer({ effect: rawEffect, rootRef, inspect }: {
   effect: BoardEffectInteraction;
   rootRef: RefObject<HTMLDivElement | null>;
@@ -351,6 +374,7 @@ export function Board2DEffectLayer({ effect: rawEffect, rootRef, inspect }: {
     }
     return count;
   };
+  const energyTransfer = effect.kind === 'energy-attach' || effect.kind === 'energy-move';
   const focusedKey = effect.focusedTarget ? keyOf(effect.focusedTarget) : undefined;
   // Placement needs its editor; transfers remain complete through counter→target taps.
   // Never spend a transfer destination's touch target on the optional quantity editor.
@@ -367,6 +391,8 @@ export function Board2DEffectLayer({ effect: rawEffect, rootRef, inspect }: {
     if (!visibleAnchor(absolute, layout.clip)) return [];
     // Use the same rectangle object when excluding the anchor in placement checks.
     const anchor = slotRects[keyOf(item.target)];
+    // Energy destinations are the real card itself, not another floating action button.
+    if (energyTransfer) return [{ item, anchor, position: anchor }];
     const position = place(anchor, TOUCH, TOUCH, bounds, obstacles, occupied);
     if (!position) return [];
     occupied.push(position);
@@ -382,41 +408,51 @@ export function Board2DEffectLayer({ effect: rawEffect, rootRef, inspect }: {
     if (adjustPosition) occupied.push(adjustPosition);
   }
 
-  const groups = new Map<string, { chips: BoardEffectChip[]; anchor: Rect; pool: boolean }>();
-  if (effect.kind !== 'target-select' && effect.kind !== 'hand-target') {
-    for (const chip of effect.chips ?? []) {
-      // Damage tokens already have a physical pickup button on their source card.
-      if (effect.targets.some(target => target.tokenId === chip.id)) continue;
-      const key = chip.source ? keyOf(chip.source) : 'pool';
-      const absolute = chip.source ? layout.slots[key] : layout.ownActive;
-      if (!visibleAnchor(absolute, layout.clip)) continue;
-      const sourceKey = chip.source ? key : Object.keys(layout.slots).find(slot => {
-        const rect = layout.slots[slot];
-        return rect.left === absolute.left && rect.top === absolute.top && rect.width === absolute.width && rect.height === absolute.height;
-      });
-      const anchor = sourceKey ? slotRects[sourceKey] : local(absolute);
-      const group = groups.get(key);
-      if (group) group.chips.push(chip);
-      else groups.set(key, { chips: [chip], anchor, pool: !chip.source });
+  // All authorized energy chips share one tray, independent of their source or draft destination.
+  // Source cards may be scrolled out of view; destinations still require a genuinely visible slot.
+  const energyChips = effect.kind.startsWith('energy-') ? effect.chips ?? [] : [];
+  const cardWidth = Math.max(80, Math.min(112, layout.ownActive?.width ?? 80));
+  const cardHeight = Math.round(cardWidth * 1.4);
+  const chipWidth = cardWidth + TOUCH;
+  const chipHeight = cardHeight + 28;
+  const trayHeaderHeight = 22;
+  const maxColumns = Math.min(3, energyChips.length, Math.floor(bounds.width / (chipWidth + 6)));
+  const traySizes = Array.from({ length: maxColumns }, (_, index) => index + 1).flatMap(columns => {
+    const maxRows = Math.min(2, Math.ceil(energyChips.length / columns));
+    return Array.from({ length: maxRows }, (_, index) => ({ columns, rows: index + 1 }));
+  }).sort((a, b) => b.columns * b.rows - a.columns * a.rows || b.columns - a.columns);
+  let energyTray: Rect | null = null;
+  for (const { columns, rows } of traySizes) {
+    const width = columns * chipWidth + (columns - 1) * 6 + 6;
+    const height = rows * chipHeight + (rows - 1) * 6 + 6 + trayHeaderHeight;
+    // Find open felt without tying the tray to a particular Pokémon or moving it after each assignment.
+    const anchor = { left: bounds.left, top: bounds.top, width: 0, height: 0 };
+    energyTray = place(anchor, width, height, bounds, obstacles, occupied, true, true);
+    if (energyTray) { occupied.push(energyTray); break; }
+  }
+  let handDocked = false;
+  if (!energyTray && energyChips.length && layout.handSpace) {
+    // Keep full-size energy cards reachable when there is no free felt. Only the
+    // inactive bottom hand may yield space; Pokémon and confirmation controls stay clear.
+    const fallbackObstacles = [...cards, ...layout.obstacles.map(local), ...layout.persistentHud.map(local)];
+    for (const { columns } of traySizes.filter(size => size.rows === 1)) {
+      const width = columns * chipWidth + (columns - 1) * 6 + 6;
+      const height = chipHeight + 6 + trayHeaderHeight;
+      energyTray = place(local(layout.handSpace), width, height, bounds, fallbackObstacles, occupied, true, true);
+      if (energyTray) { handDocked = true; occupied.push(energyTray); break; }
     }
   }
-  const chipGroups = [...groups.entries()].flatMap(([key, group]) => {
-    const width = Math.min(group.chips.length > 1 ? 152 : 100, bounds.width);
-    const height = 80;
-    const position = place(group.anchor, width, height, bounds, obstacles, occupied, true)
-      ?? (width > 100 ? place(group.anchor, 100, height, bounds, obstacles, occupied, true) : null);
-    if (!position) return [];
-    occupied.push(position);
-    return [{ key, ...group, position }];
-  });
   const discardAnchor = effect.kind === 'energy-discard' && visibleAnchor(layout.discard, layout.clip) ? layout.discard : null;
   const discard = discardAnchor ? {
     left: Math.max(clip.left, Math.min(discardAnchor.left + (discardAnchor.width - Math.max(TOUCH, discardAnchor.width)) / 2, right(clip) - Math.max(TOUCH, discardAnchor.width))),
     top: Math.max(clip.top, Math.min(discardAnchor.top, bottom(clip) - Math.max(TOUCH, discardAnchor.height))),
     width: Math.max(TOUCH, discardAnchor.width), height: Math.max(TOUCH, discardAnchor.height),
   } : null;
-  const statusWidth = Math.min(layout.root.width <= 600 ? 220 : 320, Math.max(TOUCH, layout.root.width - 170));
-  const statusBlocks = [...layout.occupiedSlots.map(key => layout.slots[key]), ...layout.obstacles, ...layout.hud,
+  const preferredStatusWidth = layout.root.width <= 600 ? 220 : 320;
+  const availableStatusWidth = handDocked && layout.ownActive
+    ? layout.ownActive.left - layout.root.left - 16 : layout.root.width - 170;
+  const statusWidth = Math.min(preferredStatusWidth, Math.max(TOUCH, availableStatusWidth));
+  const statusBlocks = [...layout.occupiedSlots.map(key => layout.slots[key]), ...layout.obstacles, ...(handDocked ? layout.persistentHud : layout.hud),
     ...occupied.map(rect => ({ ...rect, left: rect.left + clip.left, top: rect.top + clip.top }))];
   const candidates: Rect[] = [
     { left: layout.root.left + 8, top: layout.root.top + 8, width: statusWidth, height: statusHeight },
@@ -430,6 +466,7 @@ export function Board2DEffectLayer({ effect: rawEffect, rootRef, inspect }: {
 
   return createPortal(<div ref={layerRef} className={styles.layer} data-board-effect-layer={effect.kind} data-disabled={effect.disabled || undefined}
     onFocusCapture={event => { if (event.target instanceof HTMLElement) lastFocused.current = event.target; }}>
+    {handDocked ? <EnergyHandSpace rootRef={rootRef} /> : null}
     <section ref={statusRef} className={styles.status} style={{ left: statusPosition.left, top: statusPosition.top, width: compact ? compactHeading.width : statusWidth }} aria-label={effect.title} aria-busy={!!effect.disabled}>
       <div className={styles.statusHeading}>
         <div><strong>{effect.title}</strong><span role="status" aria-live="polite">{effect.disabled ? '正在处理…' : effect.progress}</span></div>
@@ -438,26 +475,25 @@ export function Board2DEffectLayer({ effect: rawEffect, rootRef, inspect }: {
       </div>
       <p className={styles.message} id={descriptionId} tabIndex={0} hidden={compact && !showHelp}>
         {repeatedMessage ? null : effect.message}
-        {effect.kind === 'hand-target' || effect.kind === 'target-select' ? null : <span className={styles.hint}>{effect.kind === 'energy-choose' ? '每个能量单位独立选择，可横向滚动，罗盘确认。' : effect.kind === 'damage-put' ? '点牌旁指示物加减数量，罗盘确认。' : effect.kind.startsWith('damage') ? '点来源指示物再点目标，也可直接拖动，罗盘确认。' : effect.kind === 'energy-discard' ? '点选能量或拖入真实弃牌区，罗盘确认。' : '点选能量再点目标，也可拖动，罗盘确认。'}</span>}
+        {effect.kind === 'hand-target' || effect.kind === 'target-select' ? null : <span className={styles.hint}>{effect.kind === 'energy-choose' ? '每个能量单位独立选择，牌多时向下滚动，罗盘确认。' : effect.kind === 'damage-put' ? '点牌旁指示物加减数量，罗盘确认。' : effect.kind.startsWith('damage') ? '点来源指示物再点目标，也可直接拖动，罗盘确认。' : effect.kind === 'energy-discard' ? '点选能量或拖入真实弃牌区，罗盘确认。' : `在能量选区点“选择”，再点${effect.kind === 'energy-attach' ? '接收能量' : '要移到'}的宝可梦，逐张分配后罗盘确认。`}</span>}
       </p>
     </section>
     <div className={styles.boardClip} style={styleOf(clip)}>
       <svg className={styles.connections} aria-hidden="true">
-        {targets.map(({ item, anchor, position }) => <Leader key={keyOf(item.target)} anchor={anchor} control={position} />)}
-        {chipGroups.map(group => <Leader key={group.key} anchor={group.anchor} control={group.position} />)}
+        {energyTransfer ? null : targets.map(({ item, anchor, position }) => <Leader key={keyOf(item.target)} anchor={anchor} control={position} />)}
       </svg>
       {targets.map(({ item, anchor, position }) => <div key={keyOf(item.target)}>
         {item.selected ? <div className={styles.selectionMark} style={styleOf(anchor)} aria-hidden="true"><Check /></div> : null}
         {item.value !== undefined && item.originalValue !== undefined && item.value !== item.originalValue ? <output className={styles.draftValue} style={{ left: anchor.left + anchor.width / 2, top: anchor.top + 2 }} aria-label={`${item.name}：${item.originalValue ?? 0}变为${item.value}`}><span>{item.originalValue ?? 0}</span><span aria-hidden="true"> → </span><strong>{item.value}</strong></output> : null}
-        <TargetAction item={item} position={position} getEffect={getEffect} describedBy={descriptionId} />
+        {energyTransfer ? !item.disabled && !effect.disabled ? <div className={styles.energyDestination} style={styleOf(anchor)} aria-hidden="true"><span>{effect.kind === 'energy-attach' ? '附加到这里' : '移到这里'}</span></div> : null : <TargetAction item={item} position={position} getEffect={getEffect} describedBy={descriptionId} />}
       </div>)}
       {focused && adjustPosition ? <Adjuster item={focused.item} position={adjustPosition} getEffect={getEffect} /> : null}
-      {chipGroups.map(group => <section key={group.key} className={styles.chipGroup} style={styleOf(group.position)} aria-label={group.pool ? '可用能量' : `${effect.targets.find(target => keyOf(target.target) === group.key)?.name ?? '来源宝可梦'}的能量`}>
-        <span className={styles.poolLabel}>{group.pool ? '可用能量' : `能量 · ${group.chips.length}`}</span>
-        <div className={styles.chipScroll} tabIndex={group.chips.length > 1 ? 0 : undefined} aria-label={group.chips.length > 1 ? '横向滚动查看能量' : undefined}>
-          {group.chips.map(chip => <EnergyChip key={chip.id} chip={chip} getEffect={getEffect} inspect={inspect} />)}
+      {energyTray ? <section className={styles.chipGroup} data-board-effect-energy-tray data-hand-docked={handDocked || undefined} style={{ ...styleOf(energyTray), '--effect-card-width': `${cardWidth}px`, '--effect-card-height': `${cardHeight}px` } as CSSProperties} aria-label={handDocked ? '能量选区（暂用手牌区）' : '能量选区'}>
+        <span className={styles.poolLabel}>能量 · {energyChips.length}</span>
+        <div className={styles.chipScroll} tabIndex={energyChips.length > 1 ? 0 : undefined} aria-label="能量选区，牌多时向下滚动查看">
+          {energyChips.map(chip => <EnergyChip key={chip.id} chip={chip} getEffect={getEffect} inspect={inspect} />)}
         </div>
-      </section>)}
+      </section> : null}
       {discard ? <DiscardLanding position={local(discard)} getEffect={getEffect} /> : null}
     </div>
   </div>, document.body);

@@ -288,12 +288,12 @@ export function AttachEnergyPromptPanel(props: AttachEnergyPromptPanelProps) {
       actionLabel: '附加',
       disabled: disabled || selectedEnergyIndex === null || !canAssign(selectedEnergyIndex, item.target),
     })),
-    chips: sourceCards.map((card, index) => ({
+    chips: sourceCards.flatMap((card, index) => !isEnergyIndexEligible(filterMap, index) ? [] : [{
       id: energyDragId(index), label: `${card.name}${assignedIndices.has(index) ? ' · 已附加' : ''}`, card,
       source: assignments.find(assignment => assignment.originalIndex === index)?.to && mapTarget(assignments.find(assignment => assignment.originalIndex === index)!.to),
       selected: selectedEnergyIndex === index,
-      disabled: disabled || !isEnergyIndexEligible(filterMap, index) || assignedIndices.has(index) || assignments.length >= max,
-    })),
+      disabled: disabled || assignedIndices.has(index) || assignments.length >= max,
+    }]),
     onChip: (id) => {
       if (frozen()) return;
       const oi = parseEnergyDragId(id);

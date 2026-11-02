@@ -193,8 +193,8 @@ async function checkAdapters() {
     const f = fixture('Attach', { blocked: [1], blockedTo: [topActive], max: 2 });
     const h = f.start();
     assert.equal(h.effect.kind, 'energy-attach');
-    assert.equal(h.effect.chips.length, 3);
-    assert.equal(new Set(h.effect.chips.map(c => c.id)).size, 3);
+    assert.equal(h.effect.chips.length, 2, 'ineligible pool entries are not listed');
+    assert.deepEqual(h.effect.chips.map(c => c.id), ['attach-energy-0', 'attach-energy-2'], 'filtered chips retain original pool indices');
     assert.ok(h.effect.chips.every(c => !c.source));
     assert.ok(h.effect.targets.some(t => JSON.stringify(t.target) === JSON.stringify(f.toVisual(bottomBench))));
     assert.equal(h.effect.canDrop('attach-energy-1', f.toVisual(bottomBench)), false);

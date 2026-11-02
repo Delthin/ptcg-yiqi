@@ -47,6 +47,7 @@ function DraggableBoardCard({
   onClick,
   onContextMenu,
   onSelect,
+  actionLabel,
   children,
 }: {
   dragId: string;
@@ -54,6 +55,7 @@ function DraggableBoardCard({
   onClick?: () => void;
   onContextMenu?: () => void;
   onSelect?: () => void;
+  actionLabel?: string;
   children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -77,7 +79,7 @@ function DraggableBoardCard({
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? '查看场上卡牌详情' : undefined}
+      aria-label={onClick ? actionLabel ?? '查看场上卡牌详情' : undefined}
       aria-keyshortcuts={onSelect ? 'Shift+Enter' : undefined}
       onKeyDown={event => {
         if (event.key === 'Enter' && event.shiftKey && onSelect) { event.preventDefault(); onSelect(); }
@@ -109,6 +111,8 @@ export type Board2DPlayerHalfProps = {
   canAcceptDrop?: (target: CardTarget) => boolean;
   canDragTarget?: (target: CardTarget) => boolean;
   onSelectTarget?: (target: CardTarget) => void;
+  /** A selected energy makes legal destinations a one-tap action; otherwise clicks inspect. */
+  targetAction?: (target: CardTarget) => string | undefined;
   scanUrl: (card: Card, list?: CardList | PokemonCardList | null) => string;
   getSleeveUrl?: (path?: string) => string | undefined;
   isSelectable: (target: CardTarget) => boolean;
@@ -138,6 +142,7 @@ export function Board2DPlayerHalf({
   canAcceptDrop,
   canDragTarget,
   onSelectTarget,
+  targetAction,
   scanUrl,
   getSleeveUrl,
   isSelectable,
@@ -191,7 +196,8 @@ export function Board2DPlayerHalf({
             dragId={board2dActiveBenchDragId(playerType, SlotType.ACTIVE, 0)}
             enabled={draggable(player?.active, activeTarget)}
             onSelect={onSelectTarget && isSelectable(activeTarget) ? () => onSelectTarget(activeTarget) : undefined}
-            onClick={() => onActiveClick()}
+            onClick={() => targetAction?.(activeTarget) && onSelectTarget ? onSelectTarget(activeTarget) : onActiveClick()}
+            actionLabel={targetAction?.(activeTarget)}
             onContextMenu={onActiveContextMenu}
           >
             <div data-slot-key={activeKey} data-board2d-active={side} style={{ width: '100%', height: '100%' }}>
@@ -243,7 +249,8 @@ export function Board2DPlayerHalf({
                 dragId={board2dActiveBenchDragId(playerType, SlotType.BENCH, i)}
                 enabled={draggable(list, target)}
                 onSelect={onSelectTarget && isSelectable(target) ? () => onSelectTarget(target) : undefined}
-                onClick={() => onBenchClick(i)}
+                onClick={() => targetAction?.(target) && onSelectTarget ? onSelectTarget(target) : onBenchClick(i)}
+                actionLabel={targetAction?.(target)}
                 onContextMenu={
                   onBenchContextMenu ? () => onBenchContextMenu(i) : undefined
                 }

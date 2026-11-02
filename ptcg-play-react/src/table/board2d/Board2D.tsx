@@ -28,6 +28,7 @@ import {
   type ChoosePokemonPrompt,
 } from 'ptcg-server';
 import { cn } from '../../utils/cn';
+import { localizeGameValue } from '../../duo/chineseCatalog';
 import { publicAssetUrl } from '../../utils/publicAssetUrl';
 import { tableThemeOption } from '../../settings/tableThemes';
 import type { TableTheme } from '../../settings/settingsStorage';
@@ -394,6 +395,14 @@ export function Board2D(props: Board2DProps) {
     [selectionMode, boardInteraction],
   );
 
+  const energyTargetAction = (target: CardTarget): string | undefined => {
+    if (!canInteract || !boardEffect || boardEffect.disabled ||
+      (boardEffect.kind !== 'energy-attach' && boardEffect.kind !== 'energy-move') ||
+      !boardEffect.chips?.some(chip => chip.selected && !chip.disabled)) return undefined;
+    const item = boardEffect.targets.find(item => item.target.player === target.player && item.target.slot === target.slot && item.target.index === target.index);
+    return item && !item.disabled ? `${localizeGameValue(item.name)}：${boardEffect.kind === 'energy-attach' ? '附加所选能量' : '将所选能量移到这里'}` : undefined;
+  };
+
   const isSelected = useCallback(
     (target: CardTarget) =>
       selectedTargets.some(
@@ -687,6 +696,7 @@ export function Board2D(props: Board2DProps) {
                   canInteract={false}
                   canDragTarget={canDragTarget}
                   onSelectTarget={selectTarget}
+                  targetAction={energyTargetAction}
                   canAcceptDrop={acceptDrop}
                   scanUrl={scanUrl}
                   getSleeveUrl={(p) => cardsAdapter.getSleeveUrl(p)}
@@ -736,6 +746,7 @@ export function Board2D(props: Board2DProps) {
                   draftCardIds={opening.active ? opening.placedIds : undefined}
                   canDragTarget={canDragTarget}
                   onSelectTarget={selectTarget}
+                  targetAction={energyTargetAction}
                   canAcceptDrop={acceptDrop}
                   playerType={PlayerType.BOTTOM_PLAYER}
                   clientId={clientId}
