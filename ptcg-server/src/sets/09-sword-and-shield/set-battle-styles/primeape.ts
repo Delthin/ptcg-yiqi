@@ -1,6 +1,6 @@
 import { PokemonCard } from '../../../game/store/card/pokemon-card';
 import { Stage, CardType } from '../../../game/store/card/card-types';
-import { StoreLike, State, StateUtils, GameError, PlayerType, GameMessage } from '../../../game';
+import { StoreLike, State, StateUtils, PlayerType } from '../../../game';
 import { Effect } from '../../../game/store/effects/effect';
 import { DISCARD_A_STADIUM_CARD_IN_PLAY, THIS_ATTACK_DOES_X_MORE_DAMAGE, WAS_ATTACK_USED } from '../../../game/store/prefabs/prefabs';
 
@@ -55,10 +55,6 @@ export class Primeape extends PokemonCard {
     if (WAS_ATTACK_USED(effect, 1, this)) {
       //I check how many Pokémon are on the bench to know how much damage the attack will cause.
       const player = effect.player;
-      const hasBenched = player.bench.some(b => b.cards.length > 0);
-      if (!hasBenched) {
-        throw new GameError(GameMessage.CANNOT_USE_ATTACK);
-      }
       let benchPokemonWithDamage = 0;
       player.forEachPokemon(PlayerType.BOTTOM_PLAYER, (cardList) => {
         if (cardList === player.active) {

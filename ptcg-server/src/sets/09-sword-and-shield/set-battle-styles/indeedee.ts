@@ -31,6 +31,7 @@ export class Indeedee extends PokemonCard {
       name: 'Hand Kinesis',
       cost: [CardType.COLORLESS, CardType.COLORLESS],
       damage: 10,
+      damageCalculation: 'x',
       text: 'This attack does 10 damage for each card in your hand.'
     }
   ];
@@ -49,15 +50,13 @@ export class Indeedee extends PokemonCard {
 
     if (WAS_ATTACK_USED(effect, 0, this)) {
       const player = effect.player;
-      player.deck.moveTo(player.hand, 1);
+      player.deck.moveTo(player.hand, 2);
       return state;
     }
 
     if (WAS_ATTACK_USED(effect, 1, this)) {
 
-      const damage = effect.player.hand.cards.length;
-
-      effect.damage += damage;
+      effect.damage = effect.player.hand.cards.length * 10;
     }
 
     return state;

@@ -62,7 +62,7 @@ export class Gholdengo extends PokemonCard {
 
       let metalEnergyCount = 0;
       checkProvidedEnergy.energyMap.forEach(energy => {
-        if (energy.provides.includes(CardType.METAL)) {
+        if (energy.provides.includes(CardType.METAL) || energy.provides.includes(CardType.ANY)) {
           metalEnergyCount++;
         }
       });
